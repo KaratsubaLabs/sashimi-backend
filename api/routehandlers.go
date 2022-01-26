@@ -7,7 +7,6 @@ import (
 func getPingHandler(w http.ResponseWriter, r *http.Request) error {
 
 	w.Header().Add("content-type", "text/strings")
-	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Pong!\n"))
 
 	return nil

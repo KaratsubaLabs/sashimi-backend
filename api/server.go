@@ -44,6 +44,7 @@ func (e route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+
 	err := funcHandler(w, r)
 
 	if err != nil {
