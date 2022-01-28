@@ -22,27 +22,27 @@ func Start() error {
 
 	ticker := time.NewTicker(PingInterval * time.Second)
 	for t := range ticker.C {
-		pingRoutes(serviceList, t.Unix())
+		PingRoutes(serviceList, t.Unix())
 	}
 
 	return nil
 
 }
 
-func pingRoutes(list db.Stats, time int64) {
+func PingRoutes(list db.Stats, time int64) {
 	for i := 0; i < len(list.ServiceName); i++ {
-		go ping(list.ServiceName[i], list.ServiceURL[i], time)
+		go Ping(list.ServiceName[i], list.ServiceURL[i], time)
 	}
 }
 
-func ping(name string, url string, time int64) {
+func Ping(name string, url string, time int64) error {
 
 	resp, err := http.Get(url)
 
 	if err == nil && resp.StatusCode == 200 {
 
 		// Log OK
-		Database.LogOK(
+		err = Database.LogOK(
 			db.Outage{
 				ServiceName: name,
 				OutageStart: 0,
@@ -53,7 +53,7 @@ func ping(name string, url string, time int64) {
 	} else {
 
 		// Log Outage
-		Database.LogOK(
+		err = Database.LogOK(
 			db.Outage{
 				ServiceName: name,
 				OutageStart: time,
@@ -62,5 +62,7 @@ func ping(name string, url string, time int64) {
 		)
 
 	}
+
+	return err
 
 }

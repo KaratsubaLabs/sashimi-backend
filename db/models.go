@@ -14,15 +14,15 @@ type Service struct {
 }
 
 type Stats struct {
-	ServiceName []string
-	ServiceURL  []string
-	Status      []bool
+	ServiceName []string `json:"service_name"`
+	ServiceURL  []string `json:"service_url"`
+	Status      []bool   `json:"status"`
 }
 
 type DetailStats struct {
-	Status        bool
-	TimeMonitored int64
-	Downtime      int64
-	OutageStart   []int64
-	OutageEnd     []int64
+	Status        bool    `json:"status"`
+	TimeMonitored int64   `json:"time_monitored"`
+	Downtime      int64   `json:"downtime"`
+	OutageStart   []int64 `json:"outage_start"`
+	OutageEnd     []int64 `json:"outage_end"`
 }
