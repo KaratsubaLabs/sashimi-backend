@@ -9,33 +9,6 @@ const PORT = "8080"
 
 type Handler = func(http.ResponseWriter, *http.Request) error
 
-type route struct {
-	name   string
-	method map[string]Handler
-}
-
-var routeSchema = []route{
-	{
-		name: "/ping",
-		method: map[string]Handler{
-			"GET":  getPingHandler,
-			"POST": postPingHandler,
-		},
-	},
-	{
-		name: "/stats",
-		method: map[string]Handler{
-			"GET": getStatsHandler,
-		},
-	},
-	{
-		name: "/detail",
-		method: map[string]Handler{
-			"GET": getDetailStatsHandler,
-		},
-	},
-}
-
 func (e route) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	funcHandler, ok := e.method[r.Method]

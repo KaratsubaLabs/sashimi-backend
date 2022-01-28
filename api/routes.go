@@ -4,6 +4,33 @@ import (
 	"net/http"
 )
 
+type route struct {
+	name   string
+	method map[string]Handler
+}
+
+var routeSchema = []route{
+	{
+		name: "/ping",
+		method: map[string]Handler{
+			"GET":  getPingHandler,
+			"POST": postPingHandler,
+		},
+	},
+	{
+		name: "/stats",
+		method: map[string]Handler{
+			"GET": getStatsHandler,
+		},
+	},
+	{
+		name: "/detail",
+		method: map[string]Handler{
+			"GET": getDetailStatsHandler,
+		},
+	},
+}
+
 func getPingHandler(w http.ResponseWriter, r *http.Request) error {
 
 	w.Header().Add("content-type", "text/strings")
