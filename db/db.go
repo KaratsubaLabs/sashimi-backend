@@ -10,8 +10,8 @@ import (
 )
 
 type Connection struct {
-	db        *sql.DB
-	connected bool
+	DB        *sql.DB
+	Connected bool
 }
 
 func (r *Connection) Connect() error {
@@ -26,10 +26,10 @@ func (r *Connection) Connect() error {
 	)
 
 	var err error
-	r.db, err = sql.Open("postgres", sourceString)
+	r.DB, err = sql.Open("postgres", sourceString)
 
 	if err == nil {
-		r.connected = true
+		r.Connected = true
 	}
 
 	return err
@@ -38,21 +38,21 @@ func (r *Connection) Connect() error {
 
 func (r *Connection) Migrate() error {
 
-	_, err1 := r.db.Exec(`CREATE TABLE ServiceList()`)
-	_, err2 := r.db.Exec(`CREATE TABLE OutageList()`)
+	_, err1 := r.DB.Exec(`CREATE TABLE ServiceList()`)
+	_, err2 := r.DB.Exec(`CREATE TABLE OutageList()`)
 
 	if err1 == sql.ErrConnDone || err2 == sql.ErrConnDone {
 		return sql.ErrConnDone
 	}
 
-	r.db.Exec(`ALTER TABLE ServiceList ADD Name VARCHAR`)
-	r.db.Exec(`ALTER TABLE ServiceList ADD URL VARCHAR`)
-	r.db.Exec(`ALTER TABLE ServiceList ADD OK BOOL`)
-	r.db.Exec(`ALTER TABLE ServiceList ADD Since BIGINT`)
+	r.DB.Exec(`ALTER TABLE ServiceList ADD Name VARCHAR`)
+	r.DB.Exec(`ALTER TABLE ServiceList ADD URL VARCHAR`)
+	r.DB.Exec(`ALTER TABLE ServiceList ADD OK BOOL`)
+	r.DB.Exec(`ALTER TABLE ServiceList ADD Since BIGINT`)
 
-	r.db.Exec(`ALTER TABLE OutageList ADD Service VARCHAR`)
-	r.db.Exec(`ALTER TABLE OutageList ADD Start BIGINT`)
-	r.db.Exec(`ALTER TABLE OutageList ADD End BIGINT`)
+	r.DB.Exec(`ALTER TABLE OutageList ADD Service VARCHAR`)
+	r.DB.Exec(`ALTER TABLE OutageList ADD Start BIGINT`)
+	r.DB.Exec(`ALTER TABLE OutageList ADD End BIGINT`)
 
 	return nil
 
@@ -60,8 +60,8 @@ func (r *Connection) Migrate() error {
 
 func (r *Connection) AddService(s Service) error {
 
-	_, err := r.db.Exec(
-		`INSERT INTO ServiceList VALUE Name=$1, URL=$2, OK=1, Since=$3`, s.serviceName, s.serviceURL, time.Now().Unix(),
+	_, err := r.DB.Exec(
+		`INSERT INTO ServiceList VALUE Name=$1, URL=$2, OK=1, Since=$3`, s.ServiceName, s.ServiceURL, time.Now().Unix(),
 	)
 
 	return err
@@ -70,10 +70,10 @@ func (r *Connection) AddService(s Service) error {
 
 func (r *Connection) RemoveService(s Service) error {
 
-	_, err := r.db.Exec(`DELETE FROM ServiceList WHERE Name=$1`, s.serviceName)
+	_, err := r.DB.Exec(`DELETE FROM ServiceList WHERE Name=$1`, s.ServiceName)
 
 	if err != nil {
-		_, err = r.db.Exec(`DELETE FROM ServiceList WHERE URL=$1`, s.serviceURL)
+		_, err = r.DB.Exec(`DELETE FROM ServiceList WHERE URL=$1`, s.ServiceURL)
 	}
 
 	return err
@@ -82,13 +82,15 @@ func (r *Connection) RemoveService(s Service) error {
 
 func (r *Connection) LogOutage(o Outage) error {
 
-	_, err := r.db.Query(`SELECT start FROM OutageList WHERE Service=$1, End=0`, o.serviceName)
+	// Check for ongoing outage
+	_, err := r.DB.Query(`SELECT start FROM OutageList WHERE Service=$1, End=0`, o.ServiceName)
 
 	if err == sql.ErrNoRows {
 
-		_, _ = r.db.Exec(`UPDATE ServiceList SET OK=0 WHERE ServiceName=$1`, o.serviceName)
-		_, err = r.db.Exec(
-			`INSERT INTO OutageList VALUE Service=$1, Start=$2, End=0`, o.serviceName, o.outageStart,
+		// Log Outage if no ongoing outage exists
+		_, _ = r.DB.Exec(`UPDATE ServiceList SET OK=0 WHERE ServiceName=$1`, o.ServiceName)
+		_, err = r.DB.Exec(
+			`INSERT INTO OutageList VALUE Service=$1, Start=$2, End=0`, o.ServiceName, o.OutageStart,
 		)
 
 		return err
@@ -101,12 +103,14 @@ func (r *Connection) LogOutage(o Outage) error {
 
 func (r *Connection) LogOK(o Outage) error {
 
-	_, err := r.db.Query(`SELECT start FROM OutageList WHERE Service=$1, End=0`, o.serviceName)
+	// Check for ongoing outage
+	_, err := r.DB.Query(`SELECT start FROM OutageList WHERE Service=$1, End=0`, o.ServiceName)
 
 	if err != sql.ErrNoRows {
 
-		_, _ = r.db.Exec(`UPDATE ServiceList SET OK=1 WHERE ServiceName=$1`, o.serviceName)
-		_, err = r.db.Exec(`UPDATE OutageList SET end=$1 WHERE ServiceName=$2, End=0`, o.outageEnd, o.serviceName)
+		// Log OK if ongoing outage exists
+		_, _ = r.DB.Exec(`UPDATE ServiceList SET OK=1 WHERE ServiceName=$1`, o.ServiceName)
+		_, err = r.DB.Exec(`UPDATE OutageList SET end=$1 WHERE ServiceName=$2, End=0`, o.OutageEnd, o.ServiceName)
 		return err
 
 	} else {
@@ -115,16 +119,16 @@ func (r *Connection) LogOK(o Outage) error {
 
 }
 
-func (r *Connection) QueryStats() (Stats, error) {
+func (r *Connection) GetStats() (Stats, error) {
 
 	var rows int32
-	r.db.QueryRow(`SELECT COUNT(Name) FROM ServiceList`).Scan(&rows)
+	r.DB.QueryRow(`SELECT COUNT(Name) FROM ServiceList`).Scan(&rows)
 
 	if rows == 0 {
 		return Stats{}, nil
 	}
 
-	data, err := r.db.Query(`SELECT Name, OK FROM ServiceList`)
+	data, err := r.DB.Query(`SELECT Name, URL, OK FROM ServiceList`)
 
 	if err != nil {
 		return Stats{}, err
@@ -132,30 +136,31 @@ func (r *Connection) QueryStats() (Stats, error) {
 
 	defer data.Close()
 	stats := Stats{
-		serviceName: make([]string, rows),
-		status:      make([]bool, rows),
+		ServiceName: make([]string, rows),
+		ServiceURL:  make([]string, rows),
+		Status:      make([]bool, rows),
 	}
 
 	for i := 0; data.Next(); i++ {
-		data.Scan(&stats.serviceName[i], &stats.status[i])
+		data.Scan(&stats.ServiceName[i], &stats.ServiceURL[i], &stats.Status[i])
 	}
 
 	return stats, nil
 
 }
 
-func (r *Connection) DetailedStats(name string) (DetailStats, error) {
+func (r *Connection) GetDetails(name string) (DetailStats, error) {
 
-	var status bool
+	var Status bool
 	var since int64
-	if r.db.QueryRow(`SELECT OK, Since FROM ServiceList WHERE Name=$1`, name).Scan(&status, &since) == sql.ErrNoRows {
+	if r.DB.QueryRow(`SELECT OK, Since FROM ServiceList WHERE Name=$1`, name).Scan(&Status, &since) == sql.ErrNoRows {
 		return DetailStats{}, sql.ErrNoRows
 	}
 
 	var rows int32
-	r.db.QueryRow(`SELECT COUNT(Name) FROM OutageList WHERE Name=$1`, name).Scan(&rows)
+	r.DB.QueryRow(`SELECT COUNT(Name) FROM OutageList WHERE Name=$1`, name).Scan(&rows)
 
-	data, err := r.db.Query(`SELECT Start, End FROM OutageList`)
+	data, err := r.DB.Query(`SELECT Start, End FROM OutageList`)
 
 	if err != nil {
 		return DetailStats{}, err
@@ -163,21 +168,21 @@ func (r *Connection) DetailedStats(name string) (DetailStats, error) {
 
 	defer data.Close()
 	detail := DetailStats{
-		status:        status,
-		timeMonitored: time.Now().Unix() - since,
-		downtime:      0,
-		outageStart:   make([]int64, rows),
-		outageEnd:     make([]int64, rows),
+		Status:        Status,
+		TimeMonitored: time.Now().Unix() - since,
+		Downtime:      0,
+		OutageStart:   make([]int64, rows),
+		OutageEnd:     make([]int64, rows),
 	}
 
 	for i := 0; data.Next(); i++ {
 
-		data.Scan(&detail.outageStart[i], &detail.outageEnd[i])
+		data.Scan(&detail.OutageStart[i], &detail.OutageEnd[i])
 
-		if detail.outageEnd[i] != 0 {
-			detail.downtime += detail.outageEnd[i] - detail.outageStart[i]
+		if detail.OutageEnd[i] != 0 {
+			detail.Downtime += detail.OutageEnd[i] - detail.OutageStart[i]
 		} else {
-			detail.downtime += time.Now().Unix() - detail.outageStart[i]
+			detail.Downtime += time.Now().Unix() - detail.OutageStart[i]
 		}
 
 	}
