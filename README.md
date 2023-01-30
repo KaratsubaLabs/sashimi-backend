@@ -3,7 +3,7 @@ Backend for からつばLABS' **project sashimi** - a status monitor for all our
 
 ## RUNNING FOR DEVELOPMENT
 ```
-go run sashimi.go
+go run runsashimi.go
 ```
 
 ## TODO
